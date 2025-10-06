@@ -1,10 +1,10 @@
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import cron from "node-cron"
+import cron from "node-cron";
 
 import { authRoutes } from "./routes/authRoutes.js";
 import { homeRoutes } from "./routes/homeRoutes.js";
@@ -39,7 +39,7 @@ app.use(
 const allowedOrigins = [
   "http://localhost:5173", // Endereço do seu frontend Vite (verifique a porta no seu terminal)
   "http://127.0.0.1:5173",
-  // Adicione aqui a URL do seu frontend em produção quando tiver
+  "https://relapro-v1.vercel.app/",
   // 'https://seusite.com'
 ];
 
