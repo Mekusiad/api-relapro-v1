@@ -59,9 +59,9 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-app.use("/api/uploads", express.static("src/uploads"));
-app.use("/api/auth", authRoutes);
-app.use("/api/home", homeRoutes);
+app.use("/uploads", express.static("src/uploads"));
+app.use("/auth", authRoutes);
+app.use("/home", homeRoutes);
 app.use("/api", uploadImageRoutes);
 
 // Rota de teste
