@@ -4,7 +4,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "build": "npx prisma migrate deploy && npx prisma generate",
+    "build": "npx prisma migrate deploy && npx prisma db seed && npx prisma generate",
     "dev": "nodemon --env-file=.env src/index.js",
     "prisma:generate": "npx prisma generate",
     "prisma:migrate": "npx prisma migrate deploy",
