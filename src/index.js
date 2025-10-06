@@ -39,9 +39,7 @@ app.use(
 const allowedOrigins = [
   "http://localhost:5173", // Endereço do seu frontend Vite (verifique a porta no seu terminal)
   "http://127.0.0.1:5173",
-  "https://relapro-v1.vercel.app/",
-  "https://relapro-v1-git-main-mekusiads-projects.vercel.app/",
-  "https://relapro-v1-esfegf10n-mekusiads-projects.vercel.app/",
+  "https://relapro-v1.vercel.app",
   // 'https://seusite.com'
 ];
 
