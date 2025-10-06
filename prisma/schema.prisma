@@ -1,0 +1,385 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// datasource db {
+//   provider = "postgresql"
+//   url      = env("DATABASE_URL")
+// }
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db" // cria o banco local aqui
+}
+
+enum NivelAcesso {
+  ADMIN
+  GERENTE
+  ENGENHEIRO
+  SUPERVISOR
+  TECNICO
+  OUTRO
+}
+
+enum TipoServico {
+  MANUTENCAO_PREVENTIVA
+  MANUTENCAO_CORRETIVA
+  MANUTENCAO_PREDITIVA
+  FOTOGRAFICO
+  TERMOGRAFIA
+  ENSAIO_EPI
+  INSTALACAO
+  INSPECAO
+  REFORMA
+  OUTRO
+}
+
+enum StatusOrdem {
+  ABERTA
+  EM_ANDAMENTO
+  CANCELADA
+  AGUARDANDO_PECAS
+  AGUARDANDO_REVISAO
+  AGUARDANDO_APROVACAO
+  PENDENCIA
+  FINALIZADA
+}
+
+enum StatusRelatorio {
+  NAO_SOLICITADO
+  PENDENTE_APROVACAO
+  APROVADO
+}
+
+enum TipoTensao {
+  X
+  Y
+  NA
+}
+
+enum TipoPressao {
+  GAS
+  OLEO
+}
+
+enum TipoComponente {
+  MALHA
+  RESISTOR
+  PARARAIO
+  CABOMUFLA
+  CHAVE_SECCIONADORA_ALTA
+  CHAVE_SECCIONADORA_MEDIA
+  CHAVE_SECCIONADORA_BAIXA
+  DISJUNTOR_ALTA
+  DISJUNTOR_MEDIA
+  DISJUNTOR_BAIXA
+  TRAFO_ALTA
+  TRAFO_CORRENTE
+  TRAFO_POTENCIAL
+  TRAFO_MEDIA
+  TRAFO_BAIXA
+  BATERIA
+  CAPACITOR
+  BUCHA
+  RELE
+  OUTRO
+}
+
+enum TipoFoto {
+  INICIAL
+  ANTES
+  DURANTE
+  DEPOIS
+  CLIENTE
+  FUNCIONARIO
+  EQUIPAMENTO
+  SUBESTACAO
+  COMPONENTE
+  ENSAIO
+  RECOMENDACAO
+  OUTRO
+}
+
+model Funcionario {
+  id          String      @id @default(uuid())
+  nome        String
+  matricula   Int         @unique
+  usuario     String      @unique
+  cargo       String
+  admissao    DateTime?
+  demissao    DateTime?
+  senhaHash   String
+  nivelAcesso NivelAcesso
+
+  engenheiro Ordem[]  @relation("EngenheiroOrdem")
+  supervisor Ordem[]  @relation("SupervisorOrdem")
+  tecnico    Ordem[]  @relation("TecnicoOrdem")
+  ensaios    Ensaio[]
+  fotos      Foto[]
+  refreshTokens RefreshToken[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Cliente {
+  id              String  @id @default(uuid())
+  cnpj            String?
+  contato         String?
+  nome            String?
+  nomeResponsavel String?
+  email           String?
+  endereco        String?
+  complemento     String?
+  rua             String?
+  numero          String?
+  bairro          String?
+  cidade          String?
+  estado          String?
+  cep             String?
+
+  fotos       Foto[]
+  ordens      Ordem[]
+  subestacoes Subestacao[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Ordem {
+  id               String       @id @default(uuid())
+  numeroOs         String?      @unique
+  numeroOrcamento  String?      @unique
+  responsavel      String?
+  localizacao      String?
+  email     String?
+  valorServico     Float?
+  contato  String?
+  descricaoInicial String?
+  observacoes      String?
+  conclusao        String?
+  recomendacoes    String?
+  previsaoInicio   DateTime?
+  previsaoTermino  DateTime?
+  tipoServico      TipoServico?
+  status           StatusOrdem  @default(ABERTA)
+  // Campos para geolocalização
+  latitude         Float?
+  longitude        Float?
+
+  clienteId String?
+  cliente   Cliente? @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  engenheiroMatricula Int?
+  engenheiro          Funcionario? @relation("EngenheiroOrdem", fields: [engenheiroMatricula], references: [matricula], onDelete: Cascade)
+
+  supervisorMatricula Int?
+  supervisor          Funcionario? @relation("SupervisorOrdem", fields: [supervisorMatricula], references: [matricula], onDelete: Cascade)
+
+  tecnicos Funcionario[] @relation("TecnicoOrdem")
+
+  subestacoes Subestacao[]
+  componentes Componente[]
+  ensaios     Ensaio[]
+  fotos       Foto[]
+
+  // --- CAMPOS PARA O FLUXO DE APROVAÇÃO DO RELATÓRIO ---
+  relatorioStatus        StatusRelatorio @default(NAO_SOLICITADO)
+  relatorioSolicitadoPor Int? // Matrícula de quem pediu
+  relatorioAprovadoPor   Int? // Matrícula do engenheiro que aprovou
+  relatorioSolicitadoEm  DateTime?
+  relatorioAprovadoEm    DateTime?
+
+  // --- CAMPOS PARA O FLUXO DE FINALIZAÇÃO EM 3 ETAPAS ---
+  finalizacaoSolicitadaPor Int? // Matrícula do Supervisor que solicitou
+  finalizacaoSolicitadaEm  DateTime?
+  revisaoAdmPor            Int? // Matrícula do ADM que revisou
+  revisaoAdmEm             DateTime?
+  aprovacaoPor             Int? // Matrícula do Engenheiro que deu a aprovação final
+  aprovacaoEm              DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Subestacao {
+  id         String  @id @default(uuid())
+  nome       String?
+  observacao String?
+
+  clienteId String?
+  cliente   Cliente? @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  ordens        Ordem[]
+  componentes   Componente[]
+  recomendacoes Recomendacao[]
+  fotos         Foto[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Componente {
+  id                 String  @id @default(uuid())
+  nomeEquipamento    String
+  cliente            String?
+  tag                String?
+  identificacao      String?
+  localizacao        String?
+  modelo             String?
+  fabricante         String?
+  numeroSerie        String?
+  quantidade         Int     @default(1)
+  meioIsolante       String?
+  anoFabricacao      String?
+  massaTotal         String?
+  potencia           String?
+  tensao             String?
+  correnteNominal    String?
+  correntePrimario   String?
+  correnteSecundario String?
+  tensaoNominal      String?
+  tensaoPrimario     String?
+  tensaoSecundario   String?
+  volumeOleoIsolante String?
+  temperaturaEnsaio  String?
+  impedancia         String?
+  frequencia         String?
+  umidadeRelativaAr  String?
+  exatidao           String?
+  curtoCircuito      String?
+  circuito           String?
+  pressao            String?
+  secaoCabo          String?
+
+  tipo         TipoComponente
+  tipoTensaoAt TipoTensao?
+  tipoTensaoBt TipoTensao?
+  tipoPressao  TipoPressao?
+
+  subestacaoId String
+  subestacao   Subestacao @relation(fields: [subestacaoId], references: [id], onDelete: Cascade)
+
+  ordens        Ordem[]
+  fotos         Foto[]
+  ensaios       Ensaio[]
+  recomendacoes Recomendacao[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Equipamento {
+  id          String  @id @default(uuid())
+  nome        String?
+  descricao   String?
+  modelo      String?
+  numeroSerie String  @unique
+
+  fotos   Foto[]
+  ensaios Ensaio[] @relation("EquipamentoEnsaio")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Ensaio {
+  id         String         @id @default(uuid())
+  tipo       TipoComponente
+  dados      Json
+  dataEnsaio DateTime?
+
+  componenteId String?
+  componente   Componente? @relation(fields: [componenteId], references: [id], onDelete: Cascade)
+
+  responsavelMatricula Int?
+  responsavel          Funcionario? @relation(fields: [responsavelMatricula], references: [matricula], onDelete: Cascade)
+
+  ordemId String
+  ordem   Ordem  @relation(fields: [ordemId], references: [id], onDelete: Cascade)
+
+  fotos        Foto[] // A sua relação com Foto (já estava correta)
+  equipamentos Equipamento[] @relation("EquipamentoEnsaio")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tipo, componenteId, ordemId])
+}
+
+model Foto {
+  id           String   @id @default(uuid())
+  descricao    String?
+  fotoUrl      String?  @unique
+  cloudinaryId String?  @unique
+  tipoFoto     TipoFoto
+
+  ordemOs String?
+  ordem   Ordem?  @relation(fields: [ordemOs], references: [numeroOs], onDelete: Cascade)
+
+  clienteId String?
+  cliente   Cliente? @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  componenteId String?
+  componente   Componente? @relation(fields: [componenteId], references: [id], onDelete: Cascade)
+
+  subestacaoId String?
+  subestacao   Subestacao? @relation(fields: [subestacaoId], references: [id], onDelete: Cascade)
+
+  funcionarioId String?
+  funcionario   Funcionario? @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+
+  ensaioId String?
+  ensaio   Ensaio? @relation(fields: [ensaioId], references: [id], onDelete: Cascade)
+
+  recomendacaoId String?
+  recomendacao   Recomendacao? @relation(fields: [recomendacaoId], references: [id], onDelete: Cascade)
+
+  equipamentoId String?
+  equipamento   Equipamento? @relation(fields: [equipamentoId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Recomendacao {
+  id         String  @id @default(uuid())
+  observacao String?
+
+  componente   Componente? @relation(fields: [componenteId], references: [id], onDelete: Cascade)
+  componenteId String
+
+  subestacao   Subestacao @relation(fields: [subestacaoId], references: [id], onDelete: Cascade)
+  subestacaoId String
+
+  fotos Foto[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LogAtividade {
+  id            String   @id @default(uuid())
+  acao          String // EXCLUIR, CRIAR, ATUALIZAR
+  entidade      String // funcionario, ordem, componente etc.
+  dadosAfetados Json // snapshot do que foi afetado
+  feitoPor      Int // matrícula de quem realizou a ação
+  createdAt     DateTime @default(now())
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  hashedToken String   @unique
+  expiresAt DateTime
+
+  funcionarioId String
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AppMeta {
+  chave   String @id
+  valor   String
+}
