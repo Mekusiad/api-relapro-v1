@@ -976,7 +976,11 @@ const setByIdsSchema = z.object({
 });
 
 const setByMatriculasSchema = z.object({
-  set: z.array(z.object({ matricula: z.number().int().positive() })),
+  set: z.array(
+    z.object({
+      matricula: z.coerce.number(),
+    })
+  ),
 });
 
 const cadastrarOrdemBodySchema = z
@@ -1027,7 +1031,7 @@ const cadastrarOrdemBodySchema = z
       clienteId: cliente.connect.id,
       engenheiroMatricula: engenheiro?.connect.matricula ?? null,
       supervisorMatricula: supervisor?.connect.matricula ?? null,
-      tecnicoMatricula: tecnicos.set.map((t) => t.matricula),
+      tecnicos: tecnicos.set,
       subestacoesId: subestacoes.set.map((s) => s.id),
       componentesId: componentes.set.map((c) => c.id),
     };
@@ -1073,9 +1077,9 @@ const atualizarOrdemBodySchema = z.object({
   // Equipa
   engenheiroMatricula: z.number().int().positive(),
   supervisorMatricula: z.number().int().positive(),
-  tecnicoMatricula: z
-    .array(z.number().int().positive())
-    .min(1, { message: "Deve haver pelo menos um técnico." }),
+  tecnicos: setByMatriculasSchema.refine((data) => data.set.length > 0, {
+    message: "É necessário associar pelo menos um técnico.",
+  }),
 
   // Escopo
   subestacoes: z.array(
@@ -1114,7 +1118,9 @@ const ordemBodySchema = z.object({
   // --- Relações ---
   engenheiro: connectByMatriculaSchema.or(disconnectSchema).optional(),
   supervisor: connectByMatriculaSchema.or(disconnectSchema).optional(),
-  tecnicos: setByMatriculasSchema.optional(),
+  tecnicos: setByMatriculasSchema.refine((data) => data.set.length > 0, {
+    message: "É necessário associar pelo menos um técnico.",
+  }),
   subestacoes: setByIdsSchema.optional(),
   componentes: setByIdsSchema.optional(),
 });
@@ -1164,10 +1170,8 @@ const listarOrdensQuerySchema = z.object({
     .transform((val) => (val ? parseInt(val, 10) : undefined)),
 
   // Filtros de data
-  dataInicio: 
-    dateSchema,
-  dataFim: 
-    dateSchema,
+  dataInicio: dateSchema,
+  dataFim: dateSchema,
 });
 
 export const listarOrdensSchema = z.object({
@@ -1239,9 +1243,9 @@ export const aprovarFinalSchema = z.object({
 // Secção Ensaio
 // Schema para os parâmetros da rota de cadastro de ensaio
 const cadastrarEnsaioParamsSchema = z.object({
-  numeroOs: z
-    .coerce
-    .string(1000,{ message: "Máximo de 1000 caracteres atingido." })
+  numeroOs: z.coerce.string(1000, {
+    message: "Máximo de 1000 caracteres atingido.",
+  }),
 });
 
 // Schema para o corpo da requisição de cadastro de ensaio
@@ -1387,7 +1391,7 @@ export const atualizarDescricaoFotosSchema = z.object({
       })
       .int("O número da OS deve ser um inteiro.")
       .positive("O número da OS deve ser um número positivo."),
-    ensaioId:z.string().min(1, "O cloudinaryId não pode ser vazio"),
+    ensaioId: z.string().min(1, "O cloudinaryId não pode ser vazio"),
     cloudinaryId: z.string().min(1, "O cloudinaryId não pode ser vazio"),
   }),
   body: z

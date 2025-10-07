@@ -78,7 +78,7 @@ const ordemComponentes = [
   "TRAFO_POTENCIA",
   "TRAFO_CORRENTE",
   "TRAFO_MEDIA",
-  "BATERIA"
+  "BATERIA",
 ];
 
 const prisma = new PrismaClient();
@@ -717,7 +717,6 @@ export const atualizarDadosCliente = async (req, res) => {
  */
 export const deletarCliente = async (req, res) => {
   // 1. Obtém o ID do cliente dos parâmetros da URL já validados e tipados
-  console.log(req.validatedData.params);
   const { clienteId } = req.validatedData.params;
 
   // 2. Obtém a matrícula do usuário logado que está realizando a ação
@@ -806,7 +805,6 @@ export const listarClientes = async (req, res) => {
     },
   });
 
-
   // Reordena os componentes de cada subestação
   const clientesOrdenados = clientes.map((cliente) => ({
     ...cliente,
@@ -859,7 +857,7 @@ export const buscarCliente = async (req, res) => {
       subestacoes: {
         orderBy: { nome: "asc" },
         include: {
-          componentes:true
+          componentes: true,
         },
       },
     },
@@ -872,7 +870,7 @@ export const buscarCliente = async (req, res) => {
     });
   }
 
-    const clienteComComponentesOrdenados = {
+  const clienteComComponentesOrdenados = {
     ...clienteFromDb,
     subestacoes: clienteFromDb.subestacoes.map((sub) => ({
       ...sub,
@@ -890,7 +888,9 @@ export const buscarCliente = async (req, res) => {
   };
 
   // Utiliza a nova função helper para padronizar a saída
-  const clienteReestruturado = reestruturarClienteParaFrontend(clienteComComponentesOrdenados);
+  const clienteReestruturado = reestruturarClienteParaFrontend(
+    clienteComComponentesOrdenados
+  );
 
   return res.status(200).json({
     status: true,
@@ -1674,7 +1674,6 @@ export const cadastrarOrdem = async (req, res) => {
   // 1. Obter todos os dados validados pelo novo schema Zod
   const dadosOS = req.validatedData.body;
   const matriculaUsuarioLogado = req.user.matricula;
-  console.log(dadosOS);
 
   // --- LÓGICA DE GERAÇÃO DO NÚMERO DA OS ---
   const hoje = new Date();
@@ -1731,7 +1730,7 @@ export const cadastrarOrdem = async (req, res) => {
               in: [
                 dadosOS.engenheiroMatricula,
                 dadosOS.supervisorMatricula,
-                ...dadosOS.tecnicoMatricula,
+                ...(dadosOS.tecnicos?.map((t) => t.matricula) || []),
               ],
             },
           },
@@ -1756,7 +1755,7 @@ export const cadastrarOrdem = async (req, res) => {
     const matriculasValidas = new Set([
       dadosOS.engenheiroMatricula,
       dadosOS.supervisorMatricula,
-      ...dadosOS.tecnicoMatricula,
+      ...dadosOS.tecnicos,
     ]);
     if (funcionarios.length !== matriculasValidas.size)
       throw new Error("Uma ou mais matrículas de funcionários são inválidas.");
@@ -1788,7 +1787,9 @@ export const cadastrarOrdem = async (req, res) => {
         engenheiro: { connect: { matricula: dadosOS.engenheiroMatricula } },
         supervisor: { connect: { matricula: dadosOS.supervisorMatricula } },
         tecnicos: {
-          connect: dadosOS.tecnicoMatricula.map((m) => ({ matricula: m })),
+          connect: (dadosOS.tecnicos || []).map((t) => ({
+            matricula: t.matricula,
+          })),
         },
         subestacoes: {
           connect: (dadosOS.subestacoesId || []).map((id) => ({ id })),
@@ -1834,8 +1835,6 @@ export const atualizarOrdem = async (req, res) => {
   const { matricula: matriculaUsuarioLogado, nivelAcesso } = req.user;
 
   try {
-    // console.log(dadosAtualizados);
-    // return;
     // 2. Buscar o estado atual da OS para validações
     const ordemAtual = await prisma.ordem.findUnique({
       where: { id: ordemId },
@@ -2052,36 +2051,66 @@ export const listarOrdem = async (req, res) => {
 };
 
 export const listarOrdens = async (req, res) => {
-  const { matricula } = req.validatedData.params;
+  // 1. Obter dados de paginação/filtro e do usuário logado
+  // ASSUMINDO que req.user é injetado por um middleware, como no exemplo anterior
+  const { matricula: matriculaUsuarioLogado, nivelAcesso } = req.user;
   const { page, limit, clienteId, tipoServico, status, dataInicio, dataFim } =
     req.validatedData.query;
 
-  // 2. Constrói o objeto 'where' dinamicamente para a filtragem
+  // 2. Constrói o objeto 'where' com os filtros da requisição
   const where = {
-    // Adiciona filtros apenas se eles foram fornecidos na requisição
     ...(clienteId && { clienteId: clienteId }),
     ...(tipoServico && { tipoServico: tipoServico }),
     ...(status && { status: status }),
     ...(dataInicio &&
       dataFim && {
         previsaoInicio: {
-          gte: dataInicio, // gte = Greater Than or Equal (Maior ou igual a)
-          lte: dataFim, // lte = Less Than or Equal (Menor ou igual a)
+          gte: new Date(dataInicio), // É uma boa prática converter para Date
+          lte: new Date(dataFim),
         },
       }),
   };
 
-  // 3. Executa as consultas ao banco de dados em paralelo para mais eficiência
+  // 3. Adiciona as regras de NÍVEL DE ACESSO ao objeto 'where'
+  // Esta é a principal modificação.
+  switch (nivelAcesso) {
+    case "SUPERVISOR":
+      // Supervisor vê as ordens que ele supervisiona OU em que atua como técnico.
+      // Usamos o operador 'OR' do Prisma para combinar as condições.
+      where.OR = [
+        { supervisorMatricula: matriculaUsuarioLogado },
+        { tecnicos: { some: { matricula: matriculaUsuarioLogado } } },
+      ];
+      break;
+
+    case "TECNICO":
+      // Técnico só vê as ordens em que ele está na lista de técnicos.
+      where.tecnicos = {
+        some: { matricula: matriculaUsuarioLogado },
+      };
+      break;
+
+    // ADMIN, GERENTE, ENGENHEIRO, OUTRO: Não adicionamos filtros extras.
+    // Eles podem ver todas as ordens (respeitando os filtros de cliente, status, etc.).
+    case "ADMIN":
+    case "GERENTE":
+    case "ENGENHEIRO":
+    case "OUTRO":
+    default:
+      // Nenhuma ação necessária, o objeto 'where' permanece como está.
+      break;
+  }
+
+  // 4. Executa as consultas ao banco de dados em paralelo com o 'where' já modificado
   const [ordens, totalOrdens, clientes] = await Promise.all([
-    // Consulta para buscar as ordens de serviço com paginação e filtros
+    // A consulta de ordens agora respeita o nível de acesso
     prisma.ordem.findMany({
-      where,
+      where, // Objeto 'where' com filtros da query + filtros de acesso
       take: limit,
       skip: (page - 1) * limit,
       orderBy: {
-        createdAt: "desc", // Ordena pelas mais recentes
+        createdAt: "desc",
       },
-      // Seleciona apenas os campos que o frontend precisa
       select: {
         id: true,
         numeroOs: true,
@@ -2089,16 +2118,15 @@ export const listarOrdens = async (req, res) => {
         previsaoInicio: true,
         status: true,
         cliente: {
-          // Inclui o nome do cliente relacionado
           select: {
             nome: true,
           },
         },
       },
     }),
-    // Consulta para contar o total de ordens que correspondem aos filtros (para paginação)
+    // A contagem TAMBÉM respeita o nível de acesso, garantindo que a paginação funcione corretamente.
     prisma.ordem.count({ where }),
-    // Consulta para buscar todos os clientes (para o dropdown de filtro)
+    // A busca de clientes não precisa de alteração
     prisma.cliente.findMany({
       select: {
         id: true,
@@ -2110,23 +2138,23 @@ export const listarOrdens = async (req, res) => {
     }),
   ]);
 
-  // 4. Formata os dados das ordens para facilitar o uso no frontend
+  // 5. Formata os dados das ordens (sem alteração)
   const ordensFormatadas = ordens.map((os) => ({
     ...os,
-    clienteNome: os.cliente?.nome || "N/A", // Aplaina o nome do cliente
-    cliente: undefined, // Remove o objeto cliente aninhado
+    clienteNome: os.cliente?.nome || "N/A",
+    cliente: undefined,
   }));
 
-  // 5. Calcula o total de páginas
+  // 6. Calcula o total de páginas (sem alteração)
   const totalPages = Math.ceil(totalOrdens / limit);
 
-  // 6. Retorna a resposta completa para o frontend
+  // 7. Retorna a resposta completa (sem alteração)
   return res.status(200).json({
     status: true,
     message: "Ordens de serviço listadas com sucesso.",
     data: {
       ordens: ordensFormatadas,
-      clientes: clientes, // Envia a lista de clientes para o filtro
+      clientes: clientes,
       currentPage: page,
       totalPages: totalPages,
       totalCount: totalOrdens,
@@ -2156,12 +2184,12 @@ export const buscarOrdemPorId = async (req, res) => {
                       fotos: true,
                     },
                   },
-                  ordens:{
-                    select:{
-                      id:true,
-                      numeroOs:true
-                    }
-                  }
+                  ordens: {
+                    select: {
+                      id: true,
+                      numeroOs: true,
+                    },
+                  },
                 },
               },
             },
@@ -2184,23 +2212,23 @@ export const buscarOrdemPorId = async (req, res) => {
   }
 
   if (osExiste?.cliente?.subestacoes) {
-  osExiste.cliente.subestacoes = osExiste.cliente.subestacoes.map((sub) => ({
-    ...sub,
-    componentes: sub.componentes.sort((a, b) => {
-      const indexA = ordemComponentes.indexOf(a.tipo);
-      const indexB = ordemComponentes.indexOf(b.tipo);
+    osExiste.cliente.subestacoes = osExiste.cliente.subestacoes.map((sub) => ({
+      ...sub,
+      componentes: sub.componentes.sort((a, b) => {
+        const indexA = ordemComponentes.indexOf(a.tipo);
+        const indexB = ordemComponentes.indexOf(b.tipo);
 
-      // Se não estiver na lista, joga pro final em ordem alfabética
-      if (indexA === -1 && indexB === -1) {
-        return a.tipo.localeCompare(b.tipo);
-      }
-      if (indexA === -1) return 1;
-      if (indexB === -1) return -1;
+        // Se não estiver na lista, joga pro final em ordem alfabética
+        if (indexA === -1 && indexB === -1) {
+          return a.tipo.localeCompare(b.tipo);
+        }
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
 
-      return indexA - indexB;
-    }),
-  }));
-}
+        return indexA - indexB;
+      }),
+    }));
+  }
 
   // Utiliza a nova função helper para padronizar a saída dos dados do cliente aninhado
   if (osExiste.cliente) {
@@ -2452,7 +2480,6 @@ export const cadastrarEnsaio = async (req, res) => {
     equipamentosIds,
   } = req.validatedData.body;
   const { matricula: matriculaUsuarioLogado } = req.user;
-  console.log(dados);
 
   // 2. Iniciar transação para garantir a integridade dos dados
   const novoEnsaio = await prisma.$transaction(async (tx) => {
@@ -2479,7 +2506,7 @@ export const cadastrarEnsaio = async (req, res) => {
     // 4. Verificar se já não existe um ensaio do mesmo tipo, para o mesmo componente, NESTA OS.
     const ensaioExistente = await tx.ensaio.findFirst({
       where: {
-        ordem: {numeroOs:numeroOs},
+        ordem: { numeroOs: numeroOs },
         componenteId: componenteId,
         tipo: tipo,
       },
@@ -2566,8 +2593,6 @@ export const atualizarEnsaio = async (req, res) => {
   const { ensaioId } = req.validatedData.params;
   const dadosAtualizados = req.validatedData.body;
   const { matricula: matriculaUsuarioLogado } = req.user;
-
-  console.log(dadosAtualizados);
 
   // 2. Iniciar transação
   const ensaioAtualizado = await prisma.$transaction(async (tx) => {

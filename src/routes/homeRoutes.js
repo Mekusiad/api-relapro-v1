@@ -88,7 +88,7 @@ import {
 import {
   protect,
   requireAuth,
-  requireCsrf,
+  verifyCsrf,
 } from "../middleware/authMiddleware.js";
 
 export const homeRoutes = express.Router({ mergeParams: true });
@@ -109,7 +109,7 @@ homeRoutes.get(
 homeRoutes.post(
   "/:matricula/funcionarios",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE"),
   validateGenerico(cadastrarFuncionarioSchema),
   cadastrarFuncionarioController
@@ -118,7 +118,7 @@ homeRoutes.post(
 homeRoutes.put(
   "/:matricula/funcionarios/:outraMatricula",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(atualizarDadosFuncionarioSchema),
   atualizarDadosFuncionarioController
@@ -127,7 +127,7 @@ homeRoutes.put(
 homeRoutes.delete(
   "/:matricula/funcionarios/:outraMatricula",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(deletarFuncionarioSchema),
   deletarFuncionarioController
@@ -172,7 +172,7 @@ homeRoutes.get(
 homeRoutes.post(
   "/:matricula/clientes",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(cadastrarClienteSchema),
   cadastrarClienteController
@@ -181,7 +181,7 @@ homeRoutes.post(
 homeRoutes.put(
   "/:matricula/clientes/:clienteId",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(atualizarDadosClienteSchema),
   atualizarDadosClienteController
@@ -190,7 +190,7 @@ homeRoutes.put(
 homeRoutes.delete(
   "/:matricula/clientes/:clienteId",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(deletarClienteSchema),
   deletarClienteController
@@ -199,7 +199,13 @@ homeRoutes.delete(
 homeRoutes.get(
   "/:matricula/clientes",
   conferirMatriculaMiddleware("matricula"),
-  nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
+  nivelAcessoMiddleware(
+    "ADMIN",
+    "GERENTE",
+    "ENGENHEIRO",
+    "SUPERVISOR",
+    "TECNICO"
+  ),
   validateGenerico(listarClientesSchema),
   listarClientesController
 );
@@ -207,7 +213,7 @@ homeRoutes.get(
 homeRoutes.get(
   "/:matricula/clientes/:clienteId",
   conferirMatriculaMiddleware("matricula"),
-  nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
+  nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO", "SUPERVISOR"),
   validateGenerico(buscarClienteSchema),
   buscarClienteController
 );
@@ -218,7 +224,7 @@ homeRoutes.get(
 homeRoutes.post(
   "/:matricula/equipamentos",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(cadastrarEquipamentoSchema),
   cadastrarEquipamentoController
@@ -227,7 +233,7 @@ homeRoutes.post(
 homeRoutes.put(
   "/:matricula/equipamentos/:equipamentoId",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(atualizarEquipamentoSchema),
   atualizarEquipamentoController
@@ -236,7 +242,7 @@ homeRoutes.put(
 homeRoutes.delete(
   "/:matricula/equipamentos/:equipamentoId",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(deletarEquipamentoSchema),
   deletarEquipamentoController
@@ -245,7 +251,13 @@ homeRoutes.delete(
 homeRoutes.get(
   "/:matricula/equipamentos",
   conferirMatriculaMiddleware("matricula"),
-  nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
+  nivelAcessoMiddleware(
+    "ADMIN",
+    "GERENTE",
+    "ENGENHEIRO",
+    "SUPERVISOR",
+    "TECNICO"
+  ),
   validateGenerico(listarEquipamentosSchema),
   listarEquipamentosController
 );
@@ -255,7 +267,7 @@ homeRoutes.get(
 homeRoutes.post(
   "/home/:matricula/clientes/:clienteId/subestacoes",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(cadastrarSubestacaoSchema),
   cadastrarSubestacaoController
@@ -264,7 +276,7 @@ homeRoutes.post(
 homeRoutes.put(
   "/home/:matricula/clientes/:clienteId/subestacoes/:subestacaoId",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(atualizarSubestacaoSchema),
   atualizarSubestacaoController
@@ -273,7 +285,7 @@ homeRoutes.put(
 homeRoutes.delete(
   "/home/:matricula/clientes/:clienteId/subestacoes/:subestacaoId",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(deletarSubestacaoSchema),
   deletarSubestacaoController
@@ -293,7 +305,7 @@ homeRoutes.get(
 homeRoutes.post(
   "/home/:matricula/subestacoes/:subestacaoId/componentes",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(cadastrarComponenteSchema),
   cadastrarComponenteController
@@ -302,7 +314,7 @@ homeRoutes.post(
 homeRoutes.put(
   "/:matricula/subestacoes/:subestacaoId/componentes/:componenteId",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(atualizarComponenteSchema),
   atualizarComponenteController
@@ -311,7 +323,7 @@ homeRoutes.put(
 homeRoutes.delete(
   "/home/:matricula/subestacoes/:subestacaoId/componentes/:componenteId",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(deletarComponenteSchema),
   deletarComponenteController
@@ -339,7 +351,7 @@ homeRoutes.get(
 homeRoutes.post(
   "/:matricula/ordens",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(cadastrarOrdemSchema),
   cadastrarOrdemController
@@ -348,7 +360,7 @@ homeRoutes.post(
 homeRoutes.put(
   "/:matricula/ordens/:ordemId",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(atualizarOrdemSchema),
   atualizarOrdemController
@@ -357,7 +369,7 @@ homeRoutes.put(
 homeRoutes.delete(
   "/:matricula/ordens/:ordemId",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"),
   validateGenerico(deletarOuCancelarOrdemSchema),
   deletarOuCancelarOrdemController
@@ -398,11 +410,7 @@ homeRoutes.get(
   "/:matricula/ordens/:ordemId/pdf", // Detalha uma OS
   protect, // Seu middleware que já verifica o accessToken
   conferirMatriculaMiddleware("matricula"),
-  nivelAcessoMiddleware(
-    "ADMIN",
-    "GERENTE",
-    "ENGENHEIRO",
-  ), // Defina os níveis que podem ver
+  nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"), // Defina os níveis que podem ver
   validateGenerico(deletarOuCancelarOrdemSchema), // Usa o novo schema de validação
   gerarDadosPDFController
 );
@@ -413,7 +421,7 @@ homeRoutes.get(
 homeRoutes.post(
   "/:matricula/ordens/:ordemId/solicitar-finalizacao",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("SUPERVISOR", "GERENTE", "ADMIN"), // Atores principais
   validateGenerico(solicitarFinalizacaoSchema),
   solicitarFinalizacaoController
@@ -422,7 +430,7 @@ homeRoutes.post(
 homeRoutes.post(
   "/:matricula/ordens/:ordemId/revisar-adm",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN"), // Apenas ADMIN pode executar esta ação
   validateGenerico(revisarAdmSchema),
   revisarAdmController
@@ -431,7 +439,7 @@ homeRoutes.post(
 homeRoutes.post(
   "/:matricula/ordens/:ordemId/aprovar-final",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ENGENHEIRO", "GERENTE", "ADMIN"), // Atores com permissão para finalizar
   validateGenerico(aprovarFinalSchema),
   aprovarFinalController
@@ -443,7 +451,7 @@ homeRoutes.post(
 homeRoutes.post(
   "/:matricula/ordens/:numeroOs/ensaios",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware(
     "ADMIN",
     "GERENTE",
@@ -458,7 +466,7 @@ homeRoutes.post(
 homeRoutes.put(
   "/:matricula/ordens/:numeroOs/ensaios/:ensaioId",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO", "TECNICO"),
   validateGenerico(atualizarEnsaioSchema),
   atualizarEnsaioController
@@ -467,7 +475,7 @@ homeRoutes.put(
 homeRoutes.delete(
   "/home/:matricula/ensaios/:ensaioId",
   conferirMatriculaMiddleware("matricula"),
-  requireCsrf,
+  verifyCsrf,
   nivelAcessoMiddleware("ADMIN"),
   validateGenerico(deletarEnsaioSchema),
   deletarEnsaioController

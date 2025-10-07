@@ -12,19 +12,43 @@ const reestruturarComponente = (componente) => {
   if (!componente) return componente;
 
   const infoFields = [
-    'tag', 'identificacao', 'localizacao', 'modelo', 'fabricante', 'numeroSerie',
-    'quantidade', 'meioIsolante', 'anoFabricacao', 'massaTotal', 'potencia',
-    'tensao', 'correnteNominal', 'correntePrimario', 'correnteSecundario',
-    'tensaoNominal', 'tensaoPrimario', 'tensaoSecundario', 'volumeOleoIsolante',
-    'temperaturaEnsaio', 'impedancia', 'frequencia', 'umidadeRelativaAr',
-    'exatidao', 'curtoCircuito', 'circuito', 'pressao', 'secaoCabo',
-    'tipoTensaoAt', 'tipoTensaoBt', 'tipoPressao'
+    "tag",
+    "identificacao",
+    "localizacao",
+    "modelo",
+    "fabricante",
+    "numeroSerie",
+    "quantidade",
+    "meioIsolante",
+    "anoFabricacao",
+    "massaTotal",
+    "potencia",
+    "tensao",
+    "correnteNominal",
+    "correntePrimario",
+    "correnteSecundario",
+    "tensaoNominal",
+    "tensaoPrimario",
+    "tensaoSecundario",
+    "volumeOleoIsolante",
+    "temperaturaEnsaio",
+    "impedancia",
+    "frequencia",
+    "umidadeRelativaAr",
+    "exatidao",
+    "curtoCircuito",
+    "circuito",
+    "pressao",
+    "secaoCabo",
+    "tipoTensaoAt",
+    "tipoTensaoBt",
+    "tipoPressao",
   ];
 
   const infoObject = {};
   const componentCore = { ...componente };
 
-  infoFields.forEach(field => {
+  infoFields.forEach((field) => {
     if (componentCore.hasOwnProperty(field)) {
       infoObject[field] = componentCore[field];
       delete componentCore[field];
@@ -49,9 +73,8 @@ const ordemComponentes = [
   "TRAFO_POTENCIA",
   "TRAFO_CORRENTE",
   "TRAFO_MEDIA",
-  "bateria"
+  "bateria",
 ];
-
 
 export const gerarPDFService = async (req, res) => {
   const { ordemId } = req.validatedData.params;
@@ -75,9 +98,9 @@ export const gerarPDFService = async (req, res) => {
               fotos: true,
               responsavel: {
                 select: {
-                  nome: true
-                }
-              }
+                  nome: true,
+                },
+              },
             },
           },
         },
@@ -108,7 +131,7 @@ export const gerarPDFService = async (req, res) => {
     }
   }
 
-   // --- LÓGICA DE ORDENAÇÃO ADICIONADA AQUI ---
+  // --- LÓGICA DE ORDENAÇÃO ADICIONADA AQUI ---
   // Itera sobre cada subestação no mapa para ordenar seus componentes.
   subestacoesMap.forEach((subestacao) => {
     subestacao.componentes.sort((a, b) => {

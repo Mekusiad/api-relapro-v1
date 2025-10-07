@@ -5,7 +5,6 @@ export const validateGenerico = (schema) => {
       params: req.params,
       query: req.query,
     });
-    console.log("Resultado da validação do schema:", result.params);
 
     if (!result.success) {
       // Extrai os erros formatados do Zod

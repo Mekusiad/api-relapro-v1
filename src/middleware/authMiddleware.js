@@ -65,3 +65,35 @@ export const protect = async (req, res, next) => {
       .json({ status: false, message: "Não autorizado, token inválido." });
   }
 };
+/**
+ * Middleware de verificação CSRF (Autorização de Ação).
+ * Protege contra ataques de Cross-Site Request Forgery, garantindo que
+ * as requisições que alteram dados sejam originadas pela nossa própria aplicação.
+ */
+export const verifyCsrf = (req, res, next) => {
+  // Ignora a verificação para métodos seguros que não alteram o estado do servidor.
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+    return next();
+  }
+
+  const csrfTokenFromHeader = req.headers["x-csrf-token"];
+  const csrfTokenFromCookie = req.cookies?.csrfToken;
+
+  // Verifica se ambos os tokens existem
+  if (!csrfTokenFromHeader || !csrfTokenFromCookie) {
+    return res
+      .status(403)
+      .json({ status: false, message: "Token CSRF ausente. Acesso proibido." });
+  }
+
+  // Compara os dois tokens
+  if (csrfTokenFromHeader !== csrfTokenFromCookie) {
+    return res.status(403).json({
+      status: false,
+      message: "Token CSRF inválido. Acesso proibido.",
+    });
+  }
+
+  // Se tudo estiver correto, continua para a próxima função.
+  next();
+};

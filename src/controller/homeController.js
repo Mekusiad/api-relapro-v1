@@ -293,13 +293,13 @@ export const buscarOrdemPorIdController = async (req, res) => {
   }
 };
 
-
-  export const gerarDadosPDFController = async (req, res) => {
+export const gerarDadosPDFController = async (req, res) => {
   try {
     await gerarPDFService(req, res);
   } catch (error) {
     return handleError(res, error, error.message);
-  }}
+  }
+};
 // ------------------------------------------------------------------------------------------------------
 // Secção Ordem de Serviço - Fluxo de Finalização
 // Etapa de solicitar a revisão
@@ -372,4 +372,4 @@ export const listarLogsController = async (req, res) => {
   } catch (error) {
     return handleError(res, error, error.message);
   }
-}
+};

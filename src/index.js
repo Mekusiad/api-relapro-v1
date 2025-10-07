@@ -20,8 +20,32 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const isProd = process.env.NODE_ENV === "production";
 
-// Middleware
-app.use(helmet());
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "https://relapro-v1.vercel.app",
+];
+
+// 2. CONFIGURAÇÃO DO CORS
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true, // Essencial para cookies
+};
+
+app.use(cors(corsOptions));
+
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -33,32 +57,7 @@ app.use(
   })
 );
 
-// --- INÍCIO DA CORREÇÃO ---
-
-// Lista de origens permitidas
-const allowedOrigins = [
-  "http://localhost:5173", // Endereço do seu frontend Vite (verifique a porta no seu terminal)
-  "http://127.0.0.1:5173",
-  "https://relapro-v1.vercel.app",
-  // 'https://seusite.com'
-];
-
-// Configuração do CORS
-const corsOptions = {
-  // A função origin verifica se a origem da requisição está na nossa lista de permitidas
-  origin: (origin, callback) => {
-    // Permitir requisições sem 'origin' (como apps mobile ou Postman) ou se a origem estiver na lista
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Não permitido pela política de CORS"));
-    }
-  },
-  credentials: true, // ESSENCIAL para permitir o envio de cookies
-};
-
-app.use(cors(corsOptions));
-
+// ROTAS
 app.use("/uploads", express.static("src/uploads"));
 app.use("/auth", authRoutes);
 app.use("/home", homeRoutes);
