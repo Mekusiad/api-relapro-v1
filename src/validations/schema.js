@@ -144,9 +144,13 @@ const cadastrarFuncionarioBodySchema = z.object({
     })
     .transform((val) => val.trim()), // Remove espaços em branco antes e depois
 
-  matricula: z.coerce.number().int().positive({
-    message: "A matrícula deve ser um número inteiro positivo.",
-  }),
+  matricula: z.coerce
+    .number()
+    .int({ message: "A matrícula deve ser um número inteiro." })
+    .positive({ message: "A matrícula deve ser um número positivo." })
+    .max(2147483647, {
+      message: "A matrícula excede o valor máximo permitido (2.147.483.647).",
+    }),
 
   // O usuário é opcional, pois será gerado se não for fornecido
   usuario: z
@@ -189,7 +193,14 @@ const atualizarDadosFuncionarioBodySchema = z.object({
     .transform((val) => val.trim())
     .optional(),
 
-  matricula: z.coerce.number().int().positive().optional(),
+  matricula: z.coerce
+    .number()
+    .int({ message: "A matrícula deve ser um número inteiro." })
+    .positive({ message: "A matrícula deve ser um número positivo." })
+    .max(2147483647, {
+      message: "A matrícula excede o valor máximo permitido (2.147.483.647).",
+    })
+    .optional(),
 
   usuario: z
     .string()
@@ -1191,6 +1202,15 @@ export const listarOrdemSchema = z.object({
   body: z.object({}).optional(),
   params: listarOrdemParamsSchema,
   query: z.object({}).optional(),
+});
+
+export const gerarPDFSchema = z.object({
+  params: z.object({
+    matricula: z.coerce
+      .number({ invalid_type_error: "Matrícula inválida." })
+      .positive("Matrícula deve ser um número positivo."),
+    ordemId: z.string().uuid("O ID da OS para o PDF deve ser um UUID válido."),
+  }),
 });
 
 // -------------------------------------------------------------------------------------------------------

@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 
 import { gerarUsuarioAutomatico } from "../utils/utils.js";
+import { deleteFromCloudinary } from "../config/cloudinary.js";
 
 const reestruturarClienteParaFrontend = (cliente) => {
   if (!cliente || !cliente.subestacoes) {
@@ -293,63 +294,78 @@ export const deletarFuncionario = async (req, res) => {
  * @param {object} res O objeto de resposta do Express.
  */
 export const listarFuncionarios = async (req, res) => {
-  // Acessa os dados já validados e tipados, fornecidos pelo middleware
-  const { page, limit, nome, matricula, cargo, nivelAcesso } =
-    req.validatedData.query;
+  // Acessa os dados validados, incluindo o novo parâmetro 'search'
+  const { search, cargo, nivelAcesso } = req.validatedData.query;
 
-  // Constrói o objeto 'where' dinamicamente com base nos filtros
+  // Constrói o objeto 'where' dinamicamente com os filtros existentes
   const where = {
-    ...(nome && {
-      nome: {
-        contains: nome,
-        // mode: 'insensitive'
-      },
-    }),
-    ...(matricula && { matricula: matricula }),
     ...(cargo && {
       cargo: {
         contains: cargo,
-        //  mode: 'insensitive'
+        // mode: 'insensitive' // Comentado para compatibilidade com SQLite
       },
     }),
     ...(nivelAcesso && { nivelAcesso: nivelAcesso }),
   };
 
-  // 1. Busca os funcionários no banco de dados com paginação e filtros
-  const funcionarios = await prisma.funcionario.findMany({
-    where,
-    orderBy: {
-      nome: "asc",
-    },
-    take: limit,
-    skip: (page - 1) * limit,
-    select: {
-      id: true,
-      nome: true,
-      usuario: true,
-      matricula: true,
-      cargo: true,
-      nivelAcesso: true,
-      createdAt: true,
-    },
-  });
+  // Se um termo de busca for fornecido, adiciona a lógica de filtro OR
+  if (search) {
+    const matriculaNumber = parseInt(search, 10);
 
-  // 2. Conta o total de funcionários para a paginação
-  const totalFuncionarios = await prisma.funcionario.count({ where });
-  const totalPages = Math.ceil(totalFuncionarios / limit);
+    where.OR = [
+      {
+        nome: {
+          contains: search,
+          // mode: 'insensitive'
+        },
+      },
+    ];
 
-  // 3. Retorna a resposta de sucesso
-  return res.status(200).json({
-    status: true,
-    mensagem: "Lista de funcionários.",
-    data: {
-      currentPage: page,
-      totalPages: totalPages,
-      totalFuncionarios: totalFuncionarios,
-      funcionarios: funcionarios,
-    },
-  });
+    // Se o termo de busca for um número válido, adiciona a busca por matrícula à condição OR
+    if (!isNaN(matriculaNumber)) {
+      where.OR.push({ matricula: matriculaNumber });
+    }
+  }
+
+  // Define os campos que serão retornados
+  const selectFields = {
+    id: true,
+    nome: true,
+    usuario: true,
+    matricula: true,
+    cargo: true,
+    nivelAcesso: true,
+    createdAt: true,
+  };
+
+  try {
+    // Busca a lista completa de funcionários com base nos filtros e ordenação
+    const funcionarios = await prisma.funcionario.findMany({
+      where,
+      orderBy: {
+        nome: "asc",
+      },
+      select: selectFields,
+    });
+
+    // Retorna a resposta com a lista completa
+    return res.status(200).json({
+      status: true,
+      mensagem: "Lista completa de funcionários.",
+      data: {
+        totalFuncionarios: funcionarios.length,
+        funcionarios: funcionarios,
+      },
+    });
+  } catch (error) {
+    console.error("Erro ao listar funcionários:", error);
+    return res.status(500).json({
+      status: false,
+      mensagem: "Ocorreu um erro interno ao buscar os funcionários.",
+    });
+  }
 };
+
 // Listar funcionário por matrícula
 /**
  * Busca um funcionário por matrícula, garantindo que dados sensíveis não sejam retornados.
@@ -789,12 +805,7 @@ export const listarClientes = async (req, res) => {
       nome: true,
       nomeResponsavel: true,
       email: true,
-      rua: true,
-      numero: true,
-      bairro: true,
-      cidade: true,
-      estado: true,
-      cep: true,
+      endereco: true,
       subestacoes: {
         include: {
           componentes: true,
@@ -1942,9 +1953,27 @@ export const deletarOuCancelarOrdem = async (req, res) => {
   const { ordemId } = req.validatedData.params;
   const { matricula: matriculaUsuarioLogado, nivelAcesso } = req.user;
 
-  // 2. Buscar a OS para verificar o seu estado atual e para o log
+  // 2. Buscar a OS e incluir TODAS as fotos relacionadas (diretas e via ensaios)
   const ordemParaRemover = await prisma.ordem.findUnique({
     where: { id: ordemId },
+    include: {
+      // Inclui as fotos diretamente associadas à OS
+      fotos: {
+        select: {
+          cloudinaryId: true,
+        },
+      },
+      // Inclui os ensaios para podermos aceder às suas fotos
+      ensaios: {
+        include: {
+          fotos: {
+            select: {
+              cloudinaryId: true,
+            },
+          },
+        },
+      },
+    },
   });
 
   if (!ordemParaRemover) {
@@ -1953,7 +1982,7 @@ export const deletarOuCancelarOrdem = async (req, res) => {
       .json({ status: false, message: "Ordem de Serviço não encontrada." });
   }
 
-  // Regra de Negócio Adicional: Não permitir cancelar/deletar uma OS já finalizada
+  // Regra de Negócio: Não permitir cancelar/deletar uma OS já finalizada
   if (ordemParaRemover.status === "FINALIZADA") {
     return res.status(403).json({
       status: false,
@@ -1965,26 +1994,59 @@ export const deletarOuCancelarOrdem = async (req, res) => {
   // 3. Lógica de decisão baseada no nível de acesso
   if (nivelAcesso === "ADMIN") {
     // --- AÇÃO DE EXCLUSÃO PERMANENTE (HARD DELETE) ---
-    await prisma.ordem.delete({
-      where: { id: ordemId },
-    });
+    try {
+      // Passo 1: Recolher TODOS os IDs do Cloudinary
+      const fotosDiretasIds = ordemParaRemover.fotos.map(
+        (foto) => foto.cloudinaryId
+      );
 
-    await prisma.logAtividade.create({
-      data: {
-        acao: "EXCLUIR",
-        entidade: "ordem",
-        dadosAfetados: ordemParaRemover,
-        feitoPor: matriculaUsuarioLogado,
-      },
-    });
+      const fotosDeEnsaiosIds = ordemParaRemover.ensaios.flatMap((ensaio) =>
+        ensaio.fotos.map((foto) => foto.cloudinaryId)
+      );
 
-    return res.status(200).json({
-      status: true,
-      message: `Ordem de Serviço ${ordemParaRemover.numeroOs} foi permanentemente excluída.`,
-    });
+      // Junta todos os IDs, remove duplicados e valores nulos
+      const todosCloudinaryIds = [
+        ...new Set([...fotosDiretasIds, ...fotosDeEnsaiosIds].filter(Boolean)),
+      ];
+
+      // Passo 2: Excluir as fotos do Cloudinary
+      if (todosCloudinaryIds.length > 0) {
+        const deletePromises = todosCloudinaryIds.map((id) =>
+          deleteFromCloudinary(id)
+        );
+        await Promise.all(deletePromises);
+      }
+
+      // Passo 3: Excluir a OS do banco de dados (o Prisma cuidará da exclusão em cascata)
+      await prisma.ordem.delete({
+        where: { id: ordemId },
+      });
+
+      // Passo 4: Criar o log de atividade
+      await prisma.logAtividade.create({
+        data: {
+          acao: "EXCLUIR",
+          entidade: "ordem",
+          dadosAfetados: ordemParaRemover, // O snapshot já foi capturado
+          feitoPor: matriculaUsuarioLogado,
+        },
+      });
+
+      return res.status(200).json({
+        status: true,
+        message: `Ordem de Serviço ${ordemParaRemover.numeroOs} e todos os dados associados foram permanentemente excluídos.`,
+      });
+    } catch (error) {
+      console.error("Erro ao excluir OS e/ou fotos do Cloudinary:", error);
+      return res.status(500).json({
+        status: false,
+        message:
+          "Ocorreu um erro no servidor ao tentar excluir a OS. Verifique os logs.",
+      });
+    }
   } else {
-    // --- AÇÃO DE CANCELAMENTO (SOFT DELETE) ---
-    const ordemCancelada = await prisma.ordem.update({
+    // --- AÇÃO DE CANCELAMENTO (SOFT DELETE) - Nenhuma mudança aqui ---
+    await prisma.ordem.update({
       where: { id: ordemId },
       data: { status: "CANCELADO" },
     });

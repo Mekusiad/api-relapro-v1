@@ -43,7 +43,7 @@ import {
   buscarClienteController,
   listarOrdensController,
   buscarOrdemPorIdController,
-  gerarDadosPDFController,
+  gerarPDFController,
 } from "../controller/homeController.js";
 
 import {
@@ -412,7 +412,7 @@ homeRoutes.get(
   conferirMatriculaMiddleware("matricula"),
   nivelAcessoMiddleware("ADMIN", "GERENTE", "ENGENHEIRO"), // Defina os níveis que podem ver
   validateGenerico(deletarOuCancelarOrdemSchema), // Usa o novo schema de validação
-  gerarDadosPDFController
+  gerarPDFController
 );
 
 // -------------------------------------------------------------------------------------------------------

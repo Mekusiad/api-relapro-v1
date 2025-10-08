@@ -1,16 +1,9 @@
-// backend/src/services/pdfServices.js
-
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-/**
- * Função auxiliar para reestruturar os dados de um componente,
- * movendo os campos de detalhes para dentro de um objeto 'info'.
- */
 const reestruturarComponente = (componente) => {
   if (!componente) return componente;
-
   const infoFields = [
     "tag",
     "identificacao",
@@ -44,63 +37,70 @@ const reestruturarComponente = (componente) => {
     "tipoTensaoBt",
     "tipoPressao",
   ];
-
   const infoObject = {};
   const componentCore = { ...componente };
-
   infoFields.forEach((field) => {
     if (componentCore.hasOwnProperty(field)) {
       infoObject[field] = componentCore[field];
       delete componentCore[field];
     }
   });
-
   return { ...componentCore, info: infoObject };
 };
 
-const ordemComponentes = [
-  "MALHA",
-  "RESISTOR",
-  "PARARAIO",
-  "CABOMUFLA",
-  "CHAVE_SECCIONADORA_ALTA",
-  "CHAVE_SECCIONADORA_MEDIA",
-  "CHAVE_SECCIONADORA_BAIXA",
-  "DISJUNTOR_ALTA",
-  "DISJUNTOR_MEDIA",
-  "TRAFO_ALTA",
-  "TRAFO_POTENCIAL",
-  "TRAFO_POTENCIA",
-  "TRAFO_CORRENTE",
-  "TRAFO_MEDIA",
-  "bateria",
-];
-
 export const gerarPDFService = async (req, res) => {
-  const { ordemId } = req.validatedData.params;
+  // ==================================================
+  // INÍCIO DA CORREÇÃO FINAL
+  // ==================================================
+  console.log("[pdfService] Iniciando a geração de PDF...");
+  console.log(
+    "[pdfService] Conteúdo de req.params:",
+    JSON.stringify(req.params, null, 2)
+  );
+  console.log(
+    "[pdfService] Conteúdo de req.validatedData:",
+    JSON.stringify(req.validatedData, null, 2)
+  );
+
+  // Tentativa 1 (Ideal): Ler dos dados validados pelo middleware.
+  let ordemId = req.validatedData?.params?.ordemId;
+
+  // Tentativa 2 (Fallback): Se a primeira falhar, tenta ler diretamente dos parâmetros da URL.
+  if (!ordemId) {
+    console.warn(
+      "[pdfService] Não foi possível encontrar 'ordemId' em req.validatedData.params. Tentando req.params..."
+    );
+    ordemId = req.params?.ordemId;
+  }
+  // ==================================================
+  // FIM DA CORREÇÃO FINAL
+  // ==================================================
+
+  console.log(`[pdfService] ID da OS extraído: ${ordemId}`);
+
+  if (!ordemId) {
+    return res.status(400).json({
+      status: false,
+      message: "O ID da Ordem de Serviço não foi fornecido na URL.",
+    });
+  }
 
   const osData = await prisma.ordem.findUnique({
     where: { id: ordemId },
     include: {
       cliente: true,
-      engenheiro: { select: { nome: true } },
-      supervisor: { select: { nome: true } },
-      tecnicos: { select: { nome: true } },
+      tecnicos: true,
+      engenheiro: true,
+      supervisor: true,
       fotos: true,
       componentes: {
-        orderBy: { nomeEquipamento: "asc" },
         include: {
           subestacao: true,
           ensaios: {
-            where: { ordemId: ordemId },
             include: {
-              equipamentos: true,
+              responsavel: true,
               fotos: true,
-              responsavel: {
-                select: {
-                  nome: true,
-                },
-              },
+              equipamentos: true,
             },
           },
         },
@@ -111,9 +111,24 @@ export const gerarPDFService = async (req, res) => {
   if (!osData) {
     return res
       .status(404)
-      .json({ status: false, message: "OS não localizada ou excluída" });
+      .json({ status: false, message: "Ordem de serviço não encontrada." });
   }
 
+  const ordemComponentes = [
+    "MALHA",
+    "RESISTOR",
+    "PARARAIO",
+    "CABOMUFLA",
+    "CHAVE_SECCIONADORA_ALTA",
+    "CHAVE_SECCIONADORA_MEDIA",
+    "DISJUNTOR_ALTA",
+    "DISJUNTOR_MEDIA",
+    "TRAFO_ALTA",
+    "TRAFO_CORRENTE",
+    "TRAFO_POTENCIAL",
+    "TRAFO_MEDIA",
+    "BATERIA",
+  ];
   const subestacoesMap = new Map();
 
   for (const componente of osData.componentes) {
@@ -125,38 +140,28 @@ export const gerarPDFService = async (req, res) => {
           componentes: [],
         });
       }
-      // APLICA A REESTRUTURAÇÃO AQUI
       const componenteReestruturado = reestruturarComponente(componente);
       subestacoesMap.get(subId).componentes.push(componenteReestruturado);
     }
   }
 
-  // --- LÓGICA DE ORDENAÇÃO ADICIONADA AQUI ---
-  // Itera sobre cada subestação no mapa para ordenar seus componentes.
   subestacoesMap.forEach((subestacao) => {
     subestacao.componentes.sort((a, b) => {
-      // Encontra a posição de cada tipo de componente na lista de ordem.
       const indexA = ordemComponentes.indexOf(a.tipo);
       const indexB = ordemComponentes.indexOf(b.tipo);
-
-      // Se um tipo não estiver na lista, ele é considerado "infinito" para que vá para o final.
       const effectiveIndexA = indexA === -1 ? Infinity : indexA;
       const effectiveIndexB = indexB === -1 ? Infinity : indexB;
-
       return effectiveIndexA - effectiveIndexB;
     });
   });
-  // --- FIM DA LÓGICA DE ORDENAÇÃO ---
 
-  const dadosParaPdf = {
+  const subestacoesOrdenadas = Array.from(subestacoesMap.values());
+
+  const responseData = {
     ...osData,
-    subestacoes: Array.from(subestacoesMap.values()),
+    subestacoes: subestacoesOrdenadas,
   };
-  delete dadosParaPdf.componentes;
 
-  return res.status(200).json({
-    status: true,
-    message: "Dados para PDF gerados com sucesso.",
-    data: dadosParaPdf,
-  });
+  console.log("[pdfService] ✅ Dados para o PDF preparados com sucesso!");
+  return res.status(200).json({ status: true, data: responseData });
 };
