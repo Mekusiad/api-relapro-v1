@@ -293,7 +293,7 @@ export const buscarOrdemPorIdController = async (req, res) => {
   }
 };
 
-export const gerarDadosPDFController = async (req, res) => {
+export const gerarPDFController = async (req, res) => {
   try {
     await gerarPDFService(req, res);
   } catch (error) {
